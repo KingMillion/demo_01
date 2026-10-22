@@ -2,22 +2,29 @@ name: Build Tauri ARM64
 
 on:
   push:
-    branches: [ main ] # 或者你使用的分支名，如 master
-  workflow_dispatch: # 允许你在网页上手动点击触发
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ubuntu-22.04 # 与你的 KICKPI 系统版本一致，避免兼容性问题
+  build-arm64:
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      # 关键修复：统一 SQL 插件版本，解决你之前遇到的报错
+      - name: Fix plugin version mismatch
+        run: |
+          # 升级 Cargo.toml 里的 Rust 端版本到 2.6
+          sed -i 's/tauri-plugin-sql = { version = "2.5"/tauri-plugin-sql = { version = "2.6"/' src-tauri/Cargo.toml || true
+          # 或者你也可以直接在 npm 端锁定版本，这里选择升级 Rust 端
+          cd src-tauri && cargo update -p tauri-plugin-sql && cd ..
 
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file \
-            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev \
-            gcc-aarch64-linux-gnu
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -29,11 +36,15 @@ jobs:
         with:
           targets: aarch64-unknown-linux-gnu
 
-      - name: Build Tauri app for ARM64
-        run: |
-          npm install
-          npm run tauri build -- --target aarch64-unknown-linux-gnu
+      # 使用官方 action，配合 ARM 模拟器直接构建，绕开交叉编译的库依赖难题
+      - name: Build with tauri-action (ARM emulation)
+        uses: tauri-apps/tauri-action@v0
+        with:
+          args: --target aarch64-unknown-linux-gnu
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # 单独上传 .deb，方便你下载
       - name: Upload .deb artifact
         uses: actions/upload-artifact@v4
         with:
