@@ -12,14 +12,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 关键修复：统一 SQL 插件版本，解决你之前遇到的报错
-      - name: Fix plugin version mismatch
-        run: |
-          # 升级 Cargo.toml 里的 Rust 端版本到 2.6
-          sed -i 's/tauri-plugin-sql = { version = "2.5"/tauri-plugin-sql = { version = "2.6"/' src-tauri/Cargo.toml || true
-          # 或者你也可以直接在 npm 端锁定版本，这里选择升级 Rust 端
-          cd src-tauri && cargo update -p tauri-plugin-sql && cd ..
-
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
@@ -30,21 +22,27 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: 'npm'
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-unknown-linux-gnu
 
-      # 使用官方 action，配合 ARM 模拟器直接构建，绕开交叉编译的库依赖难题
-      - name: Build with tauri-action (ARM emulation)
+      # 关键：显式用 npm 安装依赖，避免 tauri-action 误检测 pnpm 而卡死
+      - name: Install dependencies with npm
+        run: npm install
+
+      # 关键：通过环境变量强制 tauri-action 使用 npm
+      - name: Build with tauri-action
         uses: tauri-apps/tauri-action@v0
         with:
           args: --target aarch64-unknown-linux-gnu
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 告诉 tauri-action 用 npm，不要自动检测
+          TAURI_ACTION_PACKAGE_MANAGER: npm
 
-      # 单独上传 .deb，方便你下载
       - name: Upload .deb artifact
         uses: actions/upload-artifact@v4
         with:
