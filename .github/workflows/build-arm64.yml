@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-arm64:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-22.04-arm
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -25,25 +25,15 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-unknown-linux-gnu
 
-      # 关键：显式用 npm 安装依赖，避免 tauri-action 误检测 pnpm 而卡死
-      - name: Install dependencies with npm
+      - name: Install dependencies
         run: npm install
 
-      # 关键：通过环境变量强制 tauri-action 使用 npm
-      - name: Build with tauri-action
-        uses: tauri-apps/tauri-action@v0
-        with:
-          args: --target aarch64-unknown-linux-gnu
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # 告诉 tauri-action 用 npm，不要自动检测
-          TAURI_ACTION_PACKAGE_MANAGER: npm
+      - name: Build Tauri app
+        run: npm run tauri build
 
       - name: Upload .deb artifact
         uses: actions/upload-artifact@v4
         with:
           name: arm64-deb
-          path: src-tauri/target/aarch64-unknown-linux-gnu/release/bundle/deb/*.deb
+          path: src-tauri/target/release/bundle/deb/*.deb
